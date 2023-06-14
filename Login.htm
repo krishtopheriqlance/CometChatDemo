@@ -1,0 +1,43 @@
+<html>
+    <head>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+    </head>
+    <body>
+        <table border="1">
+            <tr>
+                <td>User Name</td>
+                <td><input type="text" id="userid" ></td>                
+            </tr>
+            <tr>
+                <td>Reciver Name</td>
+                <td><input type="text" id="rid" ></td>                
+            </tr>
+        </table>
+        
+        <input type="button" onclick="LoginFun()" id="btnLogin" value="Login">        
+    </body>
+</html>
+
+
+<script>
+    
+
+
+    
+    function LoginFun()
+        {
+            
+
+             let UID = document.getElementById('userid').value;
+             sessionStorage.setItem("UID", UID);
+
+             let RID = document.getElementById('rid').value;
+             sessionStorage.setItem("RID", RID);
+
+
+            window.location.href = "./Index.html";                    
+        }
+
+
+
+</script>

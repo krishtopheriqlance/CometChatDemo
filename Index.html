@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instant chat application using comet chat</title>
+</head>
+<body>
+    <form>
+
+        
+<table border="0">
+    <tr>        
+        <td>
+            <div>
+                <label>Message Area</label>
+                <div id="messages" style="border: 1px solid #ccc ; padding: 4px;margin: 4px;min-height: 100px;" >                    
+                </div>
+            </div>
+            <div>
+                <table border="0">
+                    <tr><td><input type="button" onclick="AcceptCallFun()" id="acceptCall" value="Accept Call" style="display: none;" ></td></tr>
+                    <tr><td>Sender</td><td><input type="text"   name="SenderTemp" id="SenderTemp" placeholder="Sender"></td></tr>
+                    <tr><td>Reciver</td><td> <input type="text"  name="ReciverTemp" id="ReciverTemp" placeholder="Reciver">  </td></tr>
+                    <tr><td>Message</td><td> <input type="text"  name="MessageBodyTemp" multiple id="myMessage" placeholder="Enter Your Message"></td></tr>
+                    <tr><td><input type="file" id="myFile" name="filename"></td>></tr>
+                    <tr><td></td><td><input type="button" onclick="SendMessageFun()" value="Send Message" id="SendMessage"></td></tr>
+                    <tr><td></td><td><input type="button" onclick="CallFun('video')" value="Video Call"></td></tr>
+                    <tr><td></td><td><input type="button" onclick="CallFun('audio')" value="Audio Call"></td></tr>
+                    <tr><td> <input type="text"  id="sessioIdData" > </td></tr>
+                </table>    
+            </div>
+        </td>
+        <td>
+            <center>
+                <div id="callScreen" style="width: 500px;height: 500px;">    
+                </div>
+            </center>
+        </td>
+    </tr>
+</table>
+    </form>
+</body>
+<script type="text/javascript" src="https://unpkg.com/@cometchat-pro/chat@3.0.11/CometChat.js"></script>
+</html>
+<script>
+
+$(document).ready(function () {
+  
+    
+var APP_URL = "{{ env('APP_URL') }}";
+
+var AUTH_KEY = "f98aac58490bac6ae40b152550f5c4fef6e6c938";
+let APP_ID = "2372747e41d99953";
+var REGION = 'us';
+
+
+var UID = sessionStorage.getItem("UID");
+var RID = sessionStorage.getItem("RID");
+
+document.getElementById('SenderTemp').value = UID;
+document.getElementById('ReciverTemp').value = RID;
+
+
+let cometChatAppSetting = new CometChat.AppSettingsBuilder()
+        .subscribePresenceForAllUsers()
+        .setRegion(REGION)
+        .build();
+
+    CometChat.init(APP_ID, cometChatAppSetting).then(
+        () => {
+            console.log("Initialization completed successfully");
+        },
+        (error) => {
+            console.log("Initialization failed with error");
+        }
+    );
+    
+    CreateMsgListener(RID);
+    CreateCallListener(RID);
+
+});
+
+
+function CallFun(callType)
+{
+
+    var authkey = "f98aac58490bac6ae40b152550f5c4fef6e6c938";
+    var receiverID = sessionStorage.getItem("RID");
+
+    CometChat.login(sessionStorage.getItem("UID"),authkey).then(
+        user=>{
+            console.log("LOGIN SUCCESSFULL",{user});
+    
+    
+
+    
+    var receiverType = CometChat.RECEIVER_TYPE.USER;
+
+    var call = new CometChat.Call(receiverID, callType, receiverType);
+
+        CometChat.initiateCall(call).then(
+        
+            outGoingCall => {
+
+                document.getElementById('sessioIdData').value= outGoingCall.sessionId;        
+                console.log("Call initiated successfully:", outGoingCall);
+                }, error => {
+                console.log("Call initialization failed with exception:", error);
+                }
+        );
+        });
+        CreateCallListener(receiverID);
+
+}
+
+function AcceptCallFun()
+{
+   
+    
+    var sessioIdData =  document.getElementById('sessioIdData').value;
+
+    
+    CometChat.acceptCall(sessioIdData).then(
+        call => {
+        console.log("Call accepted successfully:", call);
+
+
+        var sessionId = call.sessionId;
+        var callType = call.type;
+
+
+        let callController = CometChat.CallController.getInstance();
+        callController.startRecording();
+
+
+        var callSettings = new CometChat.CallSettingsBuilder()
+									.setSessionID(sessionId)
+									.enableDefaultLayout(true)
+									.setIsAudioOnlyCall(callType == 'audio' ? true : false)
+                                    .startRecordingOnCallStart('true')
+									.build();
+                                    
+        CometChat.startCall(
+            callSettings,
+            document.getElementById("callScreen"),
+            new CometChat.OngoingCallListener({
+                onUserJoined: user => {
+                    console.log("User joined call:", user);
+                },
+                onUserLeft: user => {
+                    console.log("User left call:", user);
+                },
+                onUserListUpdated: userList => {
+			        console.log("user list:", userList);
+                },
+                onCallEnded: call => {
+                    console.log("Call ended:", call);
+                },
+                onError: error => {
+                    console.log("Error :", error);
+                },
+                onMediaDeviceListUpdated: deviceList => {
+                    console.log("Device List:", deviceList);
+                },
+                onUserMuted: (userMuted, userMutedBy) => {
+                    // This event will work in JS SDK v3.0.2-beta1 & later.
+                    console.log("Listener => onUserMuted:", userMuted, userMutedBy);
+                },
+                onScreenShareStarted: () => {
+                    // This event will work in JS SDK v3.0.3 & later.
+                    console.log("Screen sharing started.");
+                },
+                onScreenShareStopped: () => {
+                    // This event will work in JS SDK v3.0.3 & later.
+                    console.log("Screen sharing stopped.");
+                },
+  	            onCallSwitchedToVideo: (sessionId, callSwitchInitiatedBy, callSwitchAcceptedBy) => {
+      	            // This event will work in JS SDK v3.0.8 & later.
+                    console.log("call switched to video:", {sessionId, callSwitchInitiatedBy, callSwitchAcceptedBy});
+                },
+                onRecordingStarted: recordingStartedBy => {                    
+                        // This event will work in JS SDK v3.0.2-beta1 & later. 
+                    console.log("Listener => onRecordingStarted:", recordingStartedBy);
+                },
+                onRecordingStopped: recordingStoppedBy => {
+                        // This event will work in JS SDK v3.0.2-beta1 & later.
+                    console.log("Listener => onRecordingStopped:", recordingStoppedBy);
+                }
+            })
+        );
+
+
+
+    },error => {
+        console.log("Call acceptance failed with error", error);
+    }
+);
+
+
+}
+
+function SendMessageFun()
+{
+    let UID = document.getElementById('SenderTemp').value;
+    let authkey = "f98aac58490bac6ae40b152550f5c4fef6e6c938";
+    let receiverID = document.getElementById('ReciverTemp').value;
+    let messageText = document.getElementById('myMessage').value;    
+
+    CometChat.login(UID,authkey).then(
+        user=>{
+        console.log("LOGIN SUCCESSFULL",{user});
+
+        var inputElement = document.getElementById('myFile');
+        var files = inputElement.files;
+    
+        if(files.length>0)
+        {            
+            var file = document.getElementById("myFile").files[0];
+
+            //----------
+            var fileInput = document.getElementById('myFile');
+            var fileName = fileInput.files[0].name;
+            var fileExtension = fileName.split('.').pop().toLowerCase();
+            //----------
+
+
+            
+            var fileType = "";
+            var fileCase = "";
+            if(fileExtension=="jpg" || fileExtension=="jpeg" || fileExtension =="png")
+            {
+                fileType = CometChat.MESSAGE_TYPE.IMAGE;
+                fileCase="IMAGE";
+
+            }
+            else if(fileExtension=="txt" || fileExtension=="doc" || fileExtension =="docx"|| fileExtension =="xls" || fileExtension =="xlsx" || fileExtension =="pdf"|| fileExtension =="ppt" || fileExtension =="pptx"|| fileExtension =="html" || fileExtension =="htm")
+            {
+                fileType = CometChat.MESSAGE_TYPE.FILE;
+                fileCase="FILE";
+            }
+            else if(fileExtension=="mp3"|| fileExtension=="aac"|| fileExtension=="flac"|| fileExtension=="wav")
+            {
+                fileType = CometChat.MESSAGE_TYPE.AUDIO;
+                fileCase="AUDIO";
+            }
+            else 
+            {
+                fileType = CometChat.MESSAGE_TYPE.VIDEO;
+                fileCase="VIDEO";
+            }
+
+            var userType = CometChat.RECEIVER_TYPE.USER;
+            var mediaMessage = new CometChat.MediaMessage(receiverID, file, fileType, userType);    
+                CometChat.sendMediaMessage(mediaMessage).then(
+                message => {
+
+                    console.log("Media Message sent successfully:", message);
+                    if(fileCase=="IMAGE"){
+                        var varSenderName = message.sender.name;
+                        var varSenderImg = message.data.attachments[0].url;                    
+                        document.getElementById('messages').innerHTML +=  '<div class="message">' + varSenderName + ': <img src='+ varSenderImg +' width="250" height="150"></div>';     
+                    }
+                    else if(fileCase=="FILE" || fileCase=="AUDIO" || fileCase=="VIDEO"){
+                        var varSenderName = message.sender.name;
+                        var varSenderImg = message.data.attachments[0].url;                    
+                        var varFileName= message.data.attachments[0].name;
+                        document.getElementById('messages').innerHTML +=  '<div class="message">' + varSenderName + ': <a target="_blank" href='+ varSenderImg +'  >'+varFileName+'</a></div>';
+                    }                
+                }     
+            ),error=>{
+                console.log("Media Message sent successfully",{error});
+            };
+        }
+
+
+        if( messageText != "")
+        {               
+            let receiverType = CometChat.RECEIVER_TYPE.USER;
+            let textMessage = new CometChat.TextMessage(receiverID, messageText, receiverType);
+
+                CometChat.sendMessage(textMessage).then(
+                    message => {
+                        console.log("Message sent successfully:", message);            
+                    
+                        var varSenderName = message.sender.name;
+                        var varSenderMsg = message.text;
+
+                        document.getElementById('messages').innerHTML +=  '<div class="message">' + varSenderName + ':'+ varSenderMsg +'</div>';
+                        document.getElementById('myMessage').value = "";
+                    }, error => {
+                        console.log("Message sending failed with error:", error);
+                    }
+                );
+        }    
+    },
+        error=>{
+            console.log("LOGIN FAIL",{error});
+        }
+        );
+
+        CreateMsgListener(receiverID);
+        
+}
+
+function CreateMsgListener(RID)
+{
+    CometChat.addMessageListener(
+        RID,
+        new CometChat.MessageListener({
+            onTextMessageReceived: textMessage => {
+                console.log("Text message received successfully", textMessage);                        
+                var varSenderName = textMessage.sender.name;
+                var varSenderMsg = textMessage.text;
+                document.getElementById('messages').innerHTML +=  '<div class="message">' + varSenderName + ':'+ varSenderMsg +'</div>';
+            },
+            onMediaMessageReceived: mediaMessage => {
+                console.log("Media message received successfully", mediaMessage);
+                
+                    if(mediaMessage.type.toLowerCase()=="file" ||mediaMessage.type.toLowerCase()=="audio" || mediaMessage.type.toLowerCase()=="video" )
+                    {
+                        var varSenderName = mediaMessage.sender.name;
+                        var varSenderImg = mediaMessage.data.attachments[0].url;
+                        var varFileName = mediaMessage.data.attachments[0].name;
+                        document.getElementById('messages').innerHTML +=  '<div class="message">' + varSenderName + ': <a  target="_blank" href='+ varSenderImg +' >'+varFileName+'</a></div>';
+                    }
+                    else if(mediaMessage.type.toLowerCase()=="image")
+                    {
+                        var varSenderName = mediaMessage.sender.name;
+                        var varSenderImg = mediaMessage.data.attachments[0].url;
+                        document.getElementById('messages').innerHTML +=  '<div class="message">' + varSenderName + ': <img src='+ varSenderImg +' width="250" height="150"></div>'; 
+                    }            
+            },
+            onCustomMessageReceived: customMessage => {
+                console.log("Custom message received successfully", customMessage);
+            }
+        })
+    );
+}
+
+function CreateCallListener(RID)
+{    
+        CometChat.addCallListener(
+        RID,
+        new CometChat.CallListener({
+            onIncomingCallReceived: (call) => {
+                console.log("Incoming call:", call);            
+                document.getElementById("acceptCall").style.display = "block";            
+                console.log("Incoming call sessionID:"+call.sessionID);
+                sessionStorage.setItem("sessionID", call.sessionID);
+            },
+            onOutgoingCallAccepted: (call) => {
+
+                console.log("Outgoing call accepted:", call);
+
+                    var sessionId = call.sessionId;
+                    var callType = call.type;
+                    var callSettings = new CometChat.CallSettingsBuilder()
+									.setSessionID(sessionId)
+									.enableDefaultLayout(true)
+									.setIsAudioOnlyCall(callType == 'audio' ? true : false)
+									.build();
+                                    
+                    CometChat.startCall(
+
+                    callSettings,
+                    document.getElementById("callScreen"),    
+                    new CometChat.OngoingCallListener                    
+                    ({
+                                    onUserJoined: user => {
+                                        console.log("User joined call:", user);
+                                    },
+                                    onUserLeft: user => {
+                                        console.log("User left call:", user);
+                                    },
+                                    onUserListUpdated: userList => {
+			                            console.log("user list:", userList);
+                                    },
+                                    onCallEnded: call => {
+                                        console.log("Call ended:", call);
+                                    },
+                                    onError: error => {
+                                        console.log("Error :", error);
+                                    },
+                                    onMediaDeviceListUpdated: deviceList => {
+                                        console.log("Device List:", deviceList);
+                                    },
+                                    onUserMuted: (userMuted, userMutedBy) => {
+                                        // This event will work in JS SDK v3.0.2-beta1 & later.
+                                        console.log("Listener => onUserMuted:", userMuted, userMutedBy);
+                                    },
+                                    onScreenShareStarted: () => {
+                                        // This event will work in JS SDK v3.0.3 & later.
+                                        console.log("Screen sharing started.");
+                                    },
+                                    onScreenShareStopped: () => {
+                                        // This event will work in JS SDK v3.0.3 & later.
+                                        console.log("Screen sharing stopped.");
+                                    },
+  	                                onCallSwitchedToVideo: (sessionId, callSwitchInitiatedBy, callSwitchAcceptedBy) => {
+      	                                // This event will work in JS SDK v3.0.8 & later.
+                                        console.log("call switched to video:", {sessionId, callSwitchInitiatedBy, callSwitchAcceptedBy});
+                                    }
+                    }));
+            },
+            onOutgoingCallRejected: (call) => {
+                console.log("Outgoing call rejected:", call);
+            },
+            onIncomingCallCancelled: (call) => {
+                console.log("Incoming call calcelled:", call);
+            }
+        })
+    );
+}
+
+
+
+</script>
